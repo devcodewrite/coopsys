@@ -13,5 +13,5 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-  ]
+, "app/plus/add.jsx", "app/(tabs)/search.jsx", "components/inputs/SingleDatePicker.jsx", "app/(tabs)/_laapp/(app)/_layout.jsx/_layout.jsx", "app/(tabs)/index.jsx", "components/AddDepositModal.jsx", "components/ProfileHeader.jsx", "app/(tabs)/settings.jsx"  ]
 }

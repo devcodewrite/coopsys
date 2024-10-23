@@ -1,0 +1,11 @@
+
+// HTTP ERRORS
+const HTTP_TOKEN_EXPIRED = 403;
+
+// RESPONSE_ERRORS
+const TOKEN_EXPIRED = 4;
+
+export default {
+    HTTP_TOKEN_EXPIRED,
+    TOKEN_EXPIRED
+}
