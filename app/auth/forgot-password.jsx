@@ -1,17 +1,20 @@
 import React, { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import TextInput from "@/components/inputs/TextInput";
-import { Button, Icon, Text } from "@rneui/themed";
+import { Button, Text, useTheme } from "@rneui/themed";
 import { Image } from "expo-image";
 import { Asset } from "expo-asset";
-import { Feather } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 const ForgotPasswordScreen = () => {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const { theme } = useTheme();
+  const [loading, setLoading] = useState(false);
 
   const handleForgotPassword = () => {
+    setLoading(true);
     // Add your forgot password logic here
     console.log("Forgot password pressed");
   };
@@ -27,7 +30,7 @@ const ForgotPasswordScreen = () => {
             ).uri,
           }}
         />
-        <Text style={styles.headerTitle}>Forgot Password</Text>
+        <Text style={styles.headerTitle}>Forgot Password ?</Text>
       </View>
       <View style={styles.content}>
         <TextInput
@@ -35,19 +38,21 @@ const ForgotPasswordScreen = () => {
           placeholder="Enter your email"
           value={email}
           onChange={setEmail}
+          required
         />
         <Button
-          style={styles.button}
+          buttonStyle={styles.button}
           title="Submit"
           onPress={handleForgotPassword}
+          icon={loading ? <ActivityIndicator color="white" animating /> : null}
+          disabled={loading}
         />
 
         <Button
           buttonStyle={styles.button}
-          color={"secondary"}
           type="clear"
           title="Login instead"
-          icon={<Feather color={"#444"} name="arrow-left" size={16} />}
+          icon={<Ionicons color={theme.colors.primary} name="arrow-back-outline" size={16} />}
           onPress={() => router.back()}
         />
       </View>
@@ -85,5 +90,6 @@ const styles = StyleSheet.create({
   button: {
     height: 45,
     width: 300,
+    borderRadius: 8,
   },
 });

@@ -1,6 +1,6 @@
 // components/FormWrapper.js
-import React, { useState } from "react";
-import { KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
+import React from "react";
+import { StyleSheet, View } from "react-native";
 import TextInput from "./inputs/TextInput";
 import SelectInput from "./inputs/SelectInput";
 import ButtonGroupInput from "./inputs/ButtonGroupInput";
@@ -129,13 +129,9 @@ const FormWrapper = ({
   };
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, containerStyle]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
-    >
+    <View style={[styles.container, containerStyle]}>
       {fieldConfig.map((field) => renderField(field))}
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 

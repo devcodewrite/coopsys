@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { useNavigation, useRouter } from "expo-router";
+import { useFocusEffect, useNavigation, useRouter } from "expo-router";
 
 import MainSearchBar from "@/components/MainSearchBar";
 import HeaderButton from "@/components/HeaderButton";
@@ -14,6 +14,7 @@ import {
   navigateForResult,
   useActivityResult,
 } from "@/hooks/useNavigateForResult";
+import settingModel from "../../coopsys/models/settingModel";
 
 const officeModel = new OfficeModel();
 
@@ -23,8 +24,10 @@ const ListLayout = () => {
 
   const { setCallback } = useActivityResult();
   const [filterResult, setFilterResult] = useState(null);
-  const [filterValue, setFilterValue] = useState(null);
+  const [filterValues, setFilterValues] = useState({});
   const [searchResults, setSearchResults] = useState([]);
+  const [searchValue, setSearchValue] = useState(null);
+
   const [refresh, setRefresh] = useState(false);
   const syncManager = useRef(null);
 
@@ -48,29 +51,46 @@ const ListLayout = () => {
       .then(async (manager) => {
         syncManager.current = manager;
         handleSync(manager);
-        setSearchResults(await officeModel.getRecordByColumns(filterValue));
+        handleSearch(searchValue);
       })
       .catch((err) => {
         console.log("err", err);
       });
-  }, [filterValue]);
+  }, [filterValues]);
+
+  useFocusEffect(
+    useCallback(() => {
+      syncManager.current && handleSync(syncManager.current);
+      return () => {};
+    }, [])
+  );
 
   const handleSync = (manager) => {
-    manager.sync().catch((err) => {
-      console.log("sync error", err);
-    });
+    manager
+      .sync()
+      .catch((err) => {
+        console.log("sync error", err);
+      })
+      .finally(() => handleSearch(searchValue));
   };
+
   // Function to handle search
   const handleSearch = async (query) => {
     try {
-      if (query) setSearchResults(await officeModel.search(query, filterValue));
-      else setSearchResults(await officeModel.getRecordByColumns(filterValue));
+      const organization = JSON.parse(
+        await settingModel.getSetting("organization")
+      );
+      filterValues.orgid = organization.orgid;
+
+      if (query)
+        setSearchResults(await officeModel.search(query, filterValues));
+      else setSearchResults(await officeModel.getRecordByColumns(filterValues));
     } catch (e) {
       console.log("handleSearch", e);
     } finally {
       setRefresh(false);
     }
-    syncManager.current && handleSync(syncManager.current);
+    setSearchValue(query);
   };
 
   const renderItem = ({ item }) => {
@@ -78,6 +98,7 @@ const ListLayout = () => {
       <CustomListItem
         title={item.name}
         subtitle={item.off_code}
+        isSynced={!!item.server_id}
         onPress={() => handleItemPress(item)}
       />
     );
@@ -104,7 +125,7 @@ const ListLayout = () => {
       if (result?.region) values["region_id"] = result?.region?.id;
       if (result?.district) values["district_id"] = result?.district?.id;
 
-      setFilterValue(values);
+      setFilterValues(values);
     }
   };
 
@@ -125,7 +146,7 @@ const ListLayout = () => {
         refreshing={refresh}
         onRefresh={() => {
           setRefresh(true);
-          handleSearch("");
+          handleSearch(searchValue);
         }}
       />
     </View>

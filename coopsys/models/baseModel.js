@@ -1,6 +1,8 @@
 // models/baseModel.js
 
 import EventEmitter from "../db/EventEmitter";
+import settingModel from "./settingModel";
+import api from "../apis/api"; // Import your Axios instance
 
 export class BaseModel {
   constructor(tableName, schema, migrations = []) {
@@ -84,15 +86,40 @@ export class BaseModel {
   }
 
   // Fetch records locally where value matches columns
+  async countByColumns(whereCond = null) {
+    if (!this.checkDb()) return;
+
+    let conditions = "1",
+      values = [];
+    if (whereCond && Object.keys(whereCond).length > 0) {
+      const columns = Object.entries(whereCond).map(
+        ([column, value]) => `${column} = ?`
+      );
+
+      const where = `(${columns.join(" AND ")})`;
+      values = Object.values(whereCond);
+      conditions = `${where}`;
+    }
+
+    return (
+      await this.db.getFirstAsync(
+        `SELECT COUNT(*) as total FROM ${this.tableName} WHERE deleted_at IS NULL AND ${conditions}`,
+        values
+      )
+    ).total;
+  }
+
+  // Fetch records locally where value matches columns
   async getRecordByColumns(whereCond = null) {
     if (!this.checkDb()) return;
 
     let conditions = "1",
       values = [];
-    if (whereCond) {
+    if (whereCond && Object.keys(whereCond).length > 0) {
       const columns = Object.entries(whereCond).map(
         ([column, value]) => `${column} = ?`
       );
+
       const where = `(${columns.join(" AND ")})`;
       values = Object.values(whereCond);
       conditions = `${where}`;
@@ -153,6 +180,16 @@ export class BaseModel {
   async removeAllRecords() {
     if (!this.checkDb()) return;
     await this.db.getAllAsync(`DELETE FROM ${this.tableName} WHERE 1`, []);
+    EventEmitter.emit("db-change", { action: "delete" });
+  }
+
+  // Delete records locally where values
+  async cleanUp() {
+    if (!this.checkDb()) return;
+    await this.db.getAllAsync(
+      `DELETE FROM ${this.tableName} WHERE server_id IS NULL`,
+      []
+    );
     EventEmitter.emit("db-change", { action: "delete" });
   }
 
@@ -233,5 +270,89 @@ export class BaseModel {
       "DB instance not attached: use model.setDatabase(db) to attach an instance."
     );
     return false;
+  }
+
+  // Sync a single table
+  async syncTable(apiEndpoint, lastSyncTime) {
+    try {
+      console.log("syncing at:", lastSyncTime);
+      const user = JSON.parse((await settingModel.getUserData()) ?? "");
+      const organization = JSON.parse(
+        (await settingModel.getSetting("organization")) ?? ""
+      );
+
+      // Fetch updates from the server
+      const response = await api.get(
+        `${apiEndpoint}${this.tableName}/sync-pull`,
+        {
+          params: {
+            lastSyncTime,
+            filters: { owner: user.owner, orgid: organization.orgid },
+          },
+        }
+      );
+      const { updated, deleted, timestamp } = response.data ?? {};
+      const error = "sync pull endpoint not properly set.";
+
+      if (!updated || !deleted) throw error;
+      const changes = [].concat(updated, deleted);
+      // Save server changes to local SQLite
+      await this.saveServerChanges(changes);
+
+      // Fetch and push local changes
+      const modifiedRecords = await this.getModifiedRecords(lastSyncTime);
+      const deletedRecords = await this.getDeletedRecords();
+
+      if (modifiedRecords.length > 0 || deletedRecords.length > 0) {
+        const changes = {
+          updated: modifiedRecords,
+          deleted: deletedRecords,
+        };
+        const response = await api.post(
+          `${apiEndpoint}${this.tableName}/sync-push`,
+          changes
+        );
+        if (response?.data?.status) {
+          await this.cleanUp();
+          // Fetch updates from the server
+          const response = await api.get(
+            `${apiEndpoint}${this.tableName}/sync-pull`,
+            {
+              params: {
+                lastSyncTime,
+                filters: { owner: user.owner, orgid: organization.orgid },
+              },
+            }
+          );
+          const { updated, deleted, timestamp } = response.data ?? {};
+          const error = "sync pull endpoint not properly set.";
+
+          if (!updated || !deleted) throw error;
+          const changes = [].concat(updated, deleted);
+          // Save server changes to local SQLite
+          await this.saveServerChanges(changes);
+
+          // Update the last sync time after successful sync
+          await settingModel.setLastSyncTime(this.tableName, timestamp);
+        }
+        console.log(response.data);
+      }
+    } catch (error) {
+      console.error(`Sync Error for table ${this.tableName}:`, error);
+      throw error;
+    }
+  }
+
+  async lastId() {
+    if (!this.checkDb()) return;
+
+    return (
+      (
+        await this.db.getFirstAsync(
+          `SELECT id FROM ${this.tableName} ORDER BY id ASC;`,
+          []
+        )
+      )?.id ?? 0
+    );
   }
 }

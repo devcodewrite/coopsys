@@ -30,7 +30,7 @@ export class DistrictModel extends BaseModel {
   async search(search_term, where = {}) {
     let values = [],
       conditions = 1;
-    if (where && where.length > 0) {
+    if (where && Object.keys(where).length > 0) {
       values = Object.values(where);
       const columns = Object.keys(where);
 

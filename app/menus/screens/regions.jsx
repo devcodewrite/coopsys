@@ -22,7 +22,7 @@ const MenuLayout = () => {
   const { data } = route.params ?? {};
   const { multiSelect, selected } = data ? JSON.parse(data) : {};
 
-  const [selectedItems, setSelectedItems] = useState([]);
+  const [selectedItems, setSelectedItems] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const syncManager = useRef(null);
@@ -53,7 +53,7 @@ const MenuLayout = () => {
       headerRight: () => (
         <HeaderButton
           title={"Done"}
-          disabled={!selectedItems.length}
+          disabled={!selectedItems}
           onPress={handleNext}
         />
       ),
@@ -74,24 +74,22 @@ const MenuLayout = () => {
       });
   }, []);
 
-  const handleSync = (manager) => {
+  const handleSync = (manager, lastSyncTime = null) => {
     setLoading(true);
     manager
-      .sync()
+      .sync(lastSyncTime)
       .catch((err) => {
         console.log("sync error", err);
       })
       .finally(async () => {
-        if (searchResults.length === 0)
+        if (searchResults.length === 0 || lastSyncTime)
           setSearchResults(await regionModel.getAllRecords());
         setLoading(false);
       });
   };
   // Function to handle search
-  const handleSearch = async (query) => {
-    if (query) setSearchResults(await regionModel.search(query));
-    else setSearchResults(await regionModel.getAllRecords());
-
+  const handleSearch = async () => {
+   setSearchResults(await regionModel.getAllRecords());
     syncManager.current && handleSync(syncManager.current);
   };
 
@@ -108,7 +106,9 @@ const MenuLayout = () => {
         data={searchResults}
         selectedItems={selected}
         onSelectItem={handleSelectItem}
-        onRefresh={() => handleSync(syncManager.current)}
+        onRefresh={() =>
+          handleSync(syncManager.current, "1970-01-01T00:00:00.000Z")
+        }
         refreshing={loading}
         renderText={(item) => <Text>{item.name}</Text>}
       />

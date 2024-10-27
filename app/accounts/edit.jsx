@@ -1,18 +1,25 @@
 // screens/accounts/AccountEdit.js
-import React, { useEffect, useState } from "react";
-import { ScrollView, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { KeyboardAvoidingView, ScrollView, View } from "react-native";
 import FormWrapper from "@/components/FormWrapper";
 import { useNavigation, useRouter } from "expo-router";
 
 import HeaderButton from "@/components/HeaderButton";
 import { useRouteInfo } from "expo-router/build/hooks";
-import { useActivityResult } from "@/hooks/useNavigateForResult";
 import { validateInput } from "@/components/inputs/TextInput";
-import api from "@/coopsys/apis/api";
+import {
+  navigateForResult,
+  useActivityResult,
+} from "@/hooks/useNavigateForResult";
+import SelectDialog from "@/components/inputs/SelectDialog";
+import { createSyncManager } from "@/coopsys/db/syncManager";
 import { useAuth } from "@/coopsys/auth/AuthProvider";
 import settingModel from "../../coopsys/models/settingModel";
+import { AccountModel } from "@/coopsys/models";
+import { Platform } from "react-native";
 
 const baseUrl = process.env.EXPO_PUBLIC_COOP_URL;
+const accountModel = new AccountModel();
 
 // Field configuration for the account form
 const fieldConfig = [
@@ -142,7 +149,7 @@ export default function EditLayout() {
   const navigation = useNavigation();
   const route = useRouteInfo();
   const router = useRouter();
-  const { callback } = useActivityResult();
+  const syncManager = useRef(null);
   const { user } = useAuth();
 
   const { data } = route.params?.data || {
@@ -155,64 +162,77 @@ export default function EditLayout() {
     },
   };
   const [formValues, setFormValues] = useState(data);
+  const [loading, setLoading] = useState(data?.id);
+  const [submitting, setSubmitting] = useState(false);
 
   const handleDone = async () => {
-     const organization = JSON.parse(await settingModel.getSetting("organization")||"");
-    formValues.community_id = 7;
-    formValues.office_id = 8;
-    formValues.owner = user.owner;
-    formValues.orgid = organization.orgid;
+    setSubmitting(true);
+    try {
+      const organization = JSON.parse(
+        (await settingModel.getSetting("organization")) || ""
+      );
+      const lastid = (await accountModel.lastId()) + 1;
 
-    console.log("form", formValues);
-
-    api
-      .post(`${baseUrl}/accounts`, formValues)
-      .then(
-        (result) => {
-          const { data } = result;
-          console.log("result", data);
-        },
-        ({ response }) => {
-          const { data } = response;
-          console.log("Request Rejected:", data);
-        }
-      )
-      .catch((error) => {
-        if (error.code === "ECONNABORTED") {
-          console.log("Request timeout error:", error.message);
-          throw error;
-        } else {
-          console.log("An error occurred:", error.message);
-        }
-      });
-  };
-  const handleCancel = () => {
-    if (callback) {
-      callback("Success!");
+      const data = {
+        id: lastid,
+        ...formValues,
+        orgid: organization.orgid,
+        owner: user.owner,
+        creator: user?.id,
+        updated_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      };
+      await accountModel.saveRecord(data);
+      handleSuccess(await accountModel.getOneByColumns({ id: lastid }));
+    } catch (e) {
+      console.log("handleSave", e);
+    } finally {
+      setSubmitting(false);
     }
+  };
+  const handleSuccess = (data) => {
+    router.dismiss();
+    router.push({ pathname: "accounts/details", params: data });
+  };
+
+  const handleCancel = () => {
     router.back();
   };
 
   useEffect(() => {
     navigation.setOptions({
       presentation: "modal",
-      title: "New Account",
+      title: data ? "Edit Account" : "New Account",
       headerLeft: () => (
         <HeaderButton bolded={false} title={"Cancel"} onPress={handleCancel} />
       ),
       headerRight: () => (
         <HeaderButton
           title={"Save"}
-          disabled={!editDone}
+          disabled={!editDone || submitting}
           onPress={handleDone}
         />
       ),
     });
-  }, [navigation, editDone]);
+  }, [navigation, editDone, submitting]);
+
+  useEffect(() => {
+    createSyncManager(baseUrl, {
+      accounts: accountModel,
+    })
+      .then(async (manager) => {
+        syncManager.current = manager;
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.log("err", err);
+      });
+  }, []);
 
   const handleChange = (name, value) => {
     setFormValues({ ...formValues, [name]: value });
   };
+
   useEffect(
     React.useCallback(() => {
       for (let i = 0; i < fieldConfig.length; i++) {
@@ -235,13 +255,17 @@ export default function EditLayout() {
 
   return (
     <ScrollView showsVerticalScrollIndicator={false}>
-      <View style={{ paddingBottom: 100 }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
+      >
         <FormWrapper
+          containerStyle={{ paddingBottom: 30 }}
           formValues={formValues}
           handleChange={handleChange}
           fieldConfig={fieldConfig}
         />
-      </View>
+      </KeyboardAvoidingView>
     </ScrollView>
   );
 }

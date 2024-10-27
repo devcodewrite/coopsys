@@ -1,74 +1,44 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { useFocusEffect, useNavigation, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 
 import MainSearchBar from "@/components/MainSearchBar";
-import HeaderButton from "@/components/HeaderButton";
-import { Ionicons } from "@expo/vector-icons";
+import CustomFlatList from "@/components/CustomFlatList";
+import CustomListItem from "@/components/CustomListItem";
+import { createSyncManager } from "@/coopsys/db/syncManager";
+import { PassbookModel } from "@/coopsys/models/passbookModel";
+
 import {
   navigateForResult,
   useActivityResult,
 } from "@/hooks/useNavigateForResult";
-import { useAuth } from "@/coopsys/auth/AuthProvider";
-import CustomFlatList from "@/components/CustomFlatList";
-import CustomListItem from "@/components/CustomListItem";
-import { createSyncManager } from "@/coopsys/db/syncManager";
-import { AssociationModel } from "@/coopsys/models/associationModel";
 import settingModel from "../../coopsys/models/settingModel";
 
-const baseUrl = process.env.EXPO_PUBLIC_COOP_URL;
-const associationModel = new AssociationModel();
+const passbookModel = new PassbookModel();
 
-const ListLayout = () => {
-  const navigation = useNavigation();
+const ListLayout = ({ association }) => {
   const router = useRouter();
-
   const { setCallback } = useActivityResult();
-  const { user } = useAuth();
+  const [filterResult, setFilterResult] = useState(null);
+  const [filterValues, setFilterValues] = useState({});
   const [searchResults, setSearchResults] = useState([]);
   const [searchValue, setSearchValue] = useState(null);
-  const [filterResult, setFilterResult] = useState({});
-  const [filterValues, setFilterValues] = useState({});
   const [refresh, setRefresh] = useState(false);
   const syncManager = useRef(null);
 
   useEffect(() => {
-    navigation.setOptions({
-      title: "List of Associations",
-      headerBackTitle: "Search",
-      headerRight: () => (
-        <HeaderButton
-          onPress={() => navigation.navigate("associations/edit")}
-          icon={() => <Ionicons color={"blue"} name="add" size={24} />}
-        />
-      ),
-    });
-  }, [navigation]);
-
-  useEffect(() => {
-    createSyncManager(baseUrl, {
-      associations: associationModel,
+    createSyncManager(process.env.EXPO_PUBLIC_COOP_URL, {
+      passbooks: passbookModel,
     })
       .then(async (manager) => {
         syncManager.current = manager;
         handleSync(manager);
-        handleSearch("");
+        handleSearch(searchValue);
       })
       .catch((err) => {
         console.log("err", err);
       });
-  }, []);
-
-  useEffect(() => {
-    if (syncManager.current) handleSearch(searchValue);
   }, [filterValues]);
-
-  useFocusEffect(
-    useCallback(() => {
-      syncManager.current && handleSync(syncManager.current);
-      return () => {};
-    }, [])
-  );
 
   const handleSync = (manager) => {
     manager
@@ -80,17 +50,17 @@ const ListLayout = () => {
   };
   // Function to handle search
   const handleSearch = async (query) => {
-    const organization = JSON.parse(
-      await settingModel.getSetting("organization")
-    );
-    filterValues.orgid = organization.orgid;
     try {
+      const organization = JSON.parse(
+        await settingModel.getSetting("organization")
+      );
+      filterValues.orgid = organization.orgid;
+      filterValues.association_id = association;
+
       if (query)
-        setSearchResults(await associationModel.search(query, filterValues));
+        setSearchResults(await passbookModel.search(query, filterValues));
       else
-        setSearchResults(
-          await associationModel.getRecordByColumns(filterValues)
-        );
+        setSearchResults(await passbookModel.getRecordByColumns(filterValues));
     } catch (e) {
       console.log("handleSearch", e);
     } finally {
@@ -102,32 +72,32 @@ const ListLayout = () => {
   const renderItem = ({ item }) => {
     return (
       <CustomListItem
-        title={item.name}
-        subtitle={item.assoc_code}
+        title={item.pbnum}
         onPress={() => handleItemPress(item)}
       />
     );
   };
   // Handler for clicking on a search item
   const handleItemPress = (item) => {
-    router.push({ pathname: "associations/details", params: item });
+    router.push({ pathname: "passbooks/details", params: item });
   };
+
   const handleFilter = async () => {
     const result = await navigateForResult(
       setCallback,
       router,
       "menus/filter",
       {
-        showOffice: true,
-        showCommunity: true,
+        showAccount: true,
+        showPassbook: true,
         selected: filterResult,
       }
     );
     setFilterResult(result);
     if (result) {
       const values = {};
-      if (result?.office) values["office_id"] = result?.office?.id;
-      if (result?.community) values["community_id"] = result?.community?.id;
+      if (result?.account) values["account_id"] = result?.account?.id;
+      if (result?.passbook) values["passbook_id"] = result?.passbook?.id;
 
       setFilterValues(values);
     }
@@ -138,7 +108,6 @@ const ListLayout = () => {
       <MainSearchBar
         placeholder="Search for records..."
         onSearch={handleSearch}
-        style={styles.searchBar}
         showFilterButton
         onFilterPress={handleFilter}
       />
@@ -146,12 +115,13 @@ const ListLayout = () => {
       <CustomFlatList
         keyExtractor={(item) => item.id.toString()}
         data={searchResults}
+        listStyle={{ margin: 0 }}
         renderItem={renderItem}
         refreshing={refresh}
         onRefresh={() => {
           handleSync(syncManager.current);
           setRefresh(true);
-          handleSearch("");
+          handleSearch(searchValue);
         }}
       />
     </View>
@@ -164,6 +134,5 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f9f9f9",
-    paddingTop: 10,
   },
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
 import { ActivityIndicator, Alert, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Button, Text } from "@rneui/themed";
@@ -119,12 +119,14 @@ const LoginScreen = () => {
           label="Email"
           placeholder="Enter your email"
           value={email}
+          required
           onChange={setEmail}
         />
         <TextInput
           label="Password"
           placeholder="Enter your password"
           value={password}
+          required
           onChange={setPassword}
           secureTextEntry
         />

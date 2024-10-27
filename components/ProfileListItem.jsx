@@ -1,19 +1,20 @@
-import { Avatar, ListItem, Text } from "@rneui/themed";
-import { StyleSheet, TouchableOpacity } from "react-native";
+import { Avatar, Icon, ListItem, Text } from "@rneui/themed";
+import { StyleSheet, TouchableOpacity, View } from "react-native";
 import CustomAvatar from "./CustomAvatar";
+import moment from "moment";
 
 export default function ProfileListItem({
   name,
-  group,
   given_name = "",
   family_name = "",
   url,
-  dateJoined,
-  passbook,
+  dateJoined = null,
+  num,
   onPress,
+  isSynced = true,
 }) {
   return (
-    <TouchableOpacity onPress={onPress}>
+    <TouchableOpacity activeOpacity={.7} onPress={onPress}>
       <ListItem bottomDivider>
         <CustomAvatar
           rounded
@@ -26,11 +27,20 @@ export default function ProfileListItem({
         />
         <ListItem.Content>
           <ListItem.Title>{name}</ListItem.Title>
-          {dateJoined && <Text style={styles.date}>{dateJoined}</Text>}
+          {dateJoined && (
+            <Text style={styles.date}>
+              {moment(dateJoined).format("D/M/Y")}
+            </Text>
+          )}
           <ListItem.Subtitle>
-            {group} | #{passbook}
+            {num}
           </ListItem.Subtitle>
         </ListItem.Content>
+        {isSynced ? null : (
+          <View style={styles.icon}>
+            <Icon type="fontawesome" name="cloud-upload" size={20} />
+          </View>
+        )}
       </ListItem>
     </TouchableOpacity>
   );
@@ -41,5 +51,10 @@ const styles = StyleSheet.create({
     position: "absolute",
     end: 0,
     fontSize: 12,
+  },
+  icon: {
+    position: "absolute",
+    end: 16,
+    top: 16,
   },
 });

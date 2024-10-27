@@ -9,6 +9,7 @@ const CustomFlatList = ({
   keyExtractor,
   refreshing = false,
   onRefresh,
+  listStyle,
 }) => {
   return (
     <FlatList
@@ -16,7 +17,7 @@ const CustomFlatList = ({
       keyExtractor={keyExtractor}
       renderItem={renderItem}
       extraData={extraData} // Ensure FlatList re-renders on selection change
-      contentContainerStyle={styles.list}
+      contentContainerStyle={[styles.list, listStyle]}
       showsVerticalScrollIndicator={false}
       ListEmptyComponent={
         <Text style={styles.noResultsText}>No results found</Text>

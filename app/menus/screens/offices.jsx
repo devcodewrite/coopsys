@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useNavigation, useRouter } from "expo-router";
 import { Text } from "@rneui/themed";
@@ -6,9 +6,12 @@ import { Text } from "@rneui/themed";
 import MainSearchBar from "@/components/MainSearchBar";
 import HeaderButton from "@/components/HeaderButton";
 import SelectableFlatList from "@/components/SelectableFlatList";
-import {  OFFICE_DATA } from "@/constants/Resources";
 import { useActivityResult } from "@/hooks/useNavigateForResult";
 import { useRouteInfo } from "expo-router/build/hooks";
+import { OfficeModel } from "@/coopsys/models";
+import { createSyncManager } from "@/coopsys/db/syncManager";
+
+const officeModel = new OfficeModel();
 
 const MenuLayout = () => {
   const navigation = useNavigation();
@@ -19,7 +22,9 @@ const MenuLayout = () => {
   const { multiSelect, selected } = data ? JSON.parse(data) : {};
 
   const [selectedItems, setSelectedItems] = useState([]);
-  const [searchResults, setSearchResults] = useState(OFFICE_DATA);
+  const [searchResults, setSearchResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const syncManager = useRef(null);
 
   const handleSelectItem = (selected) => {
     setSelectedItems(selected);
@@ -27,9 +32,12 @@ const MenuLayout = () => {
 
   const handleNext = () => {
     if (callback2)
-      callback2(OFFICE_DATA.filter((item) => selectedItems.includes(item.id)));
+      callback2(
+        searchResults.filter((item) => selectedItems.includes(item.id))
+      );
     router.back();
   };
+
   const handleCancel = () => {
     if (callback2) callback2([]);
     router.back();
@@ -52,16 +60,37 @@ const MenuLayout = () => {
     });
   }, [navigation, selectedItems]);
 
+  useEffect(() => {
+    createSyncManager(process.env.EXPO_PUBLIC_COOP_URL, {
+      offices: officeModel,
+    })
+      .then(async (manager) => {
+        syncManager.current = manager;
+        handleSync(manager);
+        handleSearch();
+      })
+      .catch((err) => {
+        console.log("err", err);
+      });
+  }, []);
+
+  const handleSync = (manager, lastSyncTime = null) => {
+    manager
+      .sync(lastSyncTime)
+      .catch((err) => {
+        console.log("sync error", err);
+      })
+      .finally(async () => {
+       handleSearch();
+        setLoading(false);
+      });
+  };
+
   // Function to handle search
-  const handleSearch = (query) => {
-    if (query) {
-      const filteredData = OFFICE_DATA.filter((item) =>
-        item.name.toLowerCase().includes(query.toLowerCase())
+  const handleSearch = async () => {
+      setSearchResults(
+        await officeModel.getRecordByColumns()
       );
-      setSearchResults(filteredData);
-    } else {
-      setSearchResults(OFFICE_DATA);
-    }
   };
 
   return (
@@ -77,6 +106,10 @@ const MenuLayout = () => {
         data={searchResults}
         selectedItems={selected}
         onSelectItem={handleSelectItem}
+        onRefresh={() =>
+          handleSync(syncManager.current, "1970-01-01T00:00:00.000Z")
+        }
+        refreshing={loading}
         renderText={(item) => <Text>{item.name}</Text>}
       />
     </View>

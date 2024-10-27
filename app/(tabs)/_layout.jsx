@@ -40,8 +40,8 @@ export default function TabLayout() {
       .get(`${coopBaseUrl}/organizations?filters[owner]=${user.owner}`)
       .then(
         async (result) => {
-          const { data } = result;
-          if (data.status) {
+          const { data } = result ?? { data: null };
+          if (data && data.status) {
             await organizationModel.saveChanges(data.data);
             const org = await settingModel.getSetting("organization");
             if (!org && data.data.length > 0)
@@ -52,8 +52,7 @@ export default function TabLayout() {
           }
         },
         ({ response }) => {
-          const { data } = response;
-          Alert.alert(data.message);
+          const { data } = response ?? { data: null };
           console.log("Request Rejected:", data);
         }
       )
@@ -62,7 +61,6 @@ export default function TabLayout() {
           console.log("Request timeout error:", error.message);
         } else {
           console.log("An error occurred:", error.message);
-          Alert.alert("Network Error", "Network connection failed!");
         }
       });
   };

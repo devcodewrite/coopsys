@@ -53,7 +53,10 @@ const SelectInput = ({ label, value, onChange, placeholder, options }) => {
             ))}
           </Picker>
           <Button
-            onPress={() => setModalVisible(false)}
+            onPress={() => {
+              onChange(options[0] ? options[0].value : null);
+              setModalVisible(false);
+            }}
             title={"Ok"}
             type="clear"
           />

@@ -1,25 +1,29 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { useNavigation, useRouter } from "expo-router";
+import { useFocusEffect, useNavigation, useRouter } from "expo-router";
 
 import MainSearchBar from "@/components/MainSearchBar";
 import HeaderButton from "@/components/HeaderButton";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  navigateForResult,
-  useActivityResult,
-} from "@/hooks/useNavigateForResult";
 import CustomFlatList from "@/components/CustomFlatList";
-import { ACCOUNT_DATA } from "@/constants/Resources";
-import ProfileListItem from "@/components/ProfileListItem";
+import { createSyncManager } from "@/coopsys/db/syncManager";
+
+import { AccountModel } from "@/coopsys/models/accountModel";
+import ProfileListItem from "../../components/ProfileListItem";
+import settingModel from "../../coopsys/models/settingModel";
+
+const baseUrl = process.env.EXPO_PUBLIC_COOP_URL;
+const accountModel = new AccountModel();
 
 const ListLayout = () => {
   const navigation = useNavigation();
   const router = useRouter();
 
-  const [searchResults, setSearchResults] = useState(ACCOUNT_DATA);
-  const [filterResult, setFilterResult] = useState(null);
-  const { setCallback } = useActivityResult();
+  const [searchResults, setSearchResults] = useState([]);
+  const [filterValues, setFilterValues] = useState({});
+  const [searchValue, setSearchValue] = useState(null);
+  const [refresh, setRefresh] = useState(false);
+  const syncManager = useRef(null);
 
   useEffect(() => {
     navigation.setOptions({
@@ -34,47 +38,75 @@ const ListLayout = () => {
     });
   }, [navigation]);
 
+  useEffect(() => {
+    createSyncManager(baseUrl, {
+      accounts: accountModel,
+    })
+      .then(async (manager) => {
+        syncManager.current = manager;
+        handleSearch("");
+        handleSync(manager);
+      })
+      .catch((err) => {
+        console.log("err", err);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (syncManager.current) handleSearch(searchValue);
+  }, [filterValues]);
+
+  useFocusEffect(
+    useCallback(() => {
+      syncManager.current && handleSync(syncManager.current);
+      return () => {};
+    }, [])
+  );
+
+  const handleSync = (manager) => {
+    manager
+      .sync()
+      .catch((err) => {
+        console.log("sync error", err);
+      })
+      .finally(() => handleSearch(searchValue));
+  };
   // Function to handle search
-  const handleSearch = (query) => {
-    if (query) {
-      const filteredData = ACCOUNT_DATA.filter((item) =>
-        item.name.toLowerCase().includes(query.toLowerCase())
-      );
-      setSearchResults(filteredData);
-    } else {
-      setSearchResults(ACCOUNT_DATA);
+  const handleSearch = async (query) => {
+    const organization = JSON.parse(
+      await settingModel.getSetting("organization")
+    );
+    filterValues.orgid = organization.orgid;
+
+    try {
+      if (query)
+        setSearchResults(await accountModel.search(query, filterValues));
+      else
+        setSearchResults(await accountModel.getRecordByColumns(filterValues));
+    } catch (e) {
+      console.log("handleSearch", e);
+    } finally {
+      setRefresh(false);
     }
+    setSearchValue(query);
   };
 
   const renderItem = ({ item }) => {
     return (
       <ProfileListItem
         name={item.name}
-        url={item.photo}
         given_name={item.given_name}
         family_name={item.family_name}
-        passbook={item.id}
-        dateJoined={item.date_joined}
+        dateJoined={item.created_at}
+        num={item.acnum}
+        url={item.photo}
         onPress={() => handleItemPress(item)}
       />
     );
   };
   // Handler for clicking on a search item
   const handleItemPress = (item) => {
-    router.push({ pathname: "accounts/details", params: { id: item.id } });
-  };
-  const handleFilter = async () => {
-    const result = await navigateForResult(
-      setCallback,
-      router,
-      "menus/filter",
-      {
-        showAssociation: true,
-        showCommunity: true,
-        selected: filterResult,
-      }
-    );
-    setFilterResult(result);
+    router.push({ pathname: "accounts/details", params: item });
   };
 
   return (
@@ -83,14 +115,18 @@ const ListLayout = () => {
         placeholder="Search for records..."
         onSearch={handleSearch}
         style={styles.searchBar}
-        showFilterButton
-        onFilterPress={handleFilter}
       />
       {/* Display Search Results */}
       <CustomFlatList
         keyExtractor={(item) => item.id.toString()}
         data={searchResults}
         renderItem={renderItem}
+        refreshing={refresh}
+        onRefresh={() => {
+          handleSync(syncManager.current);
+          setRefresh(true);
+          handleSearch(searchValue);
+        }}
       />
     </View>
   );

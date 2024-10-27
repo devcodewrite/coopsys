@@ -5,55 +5,38 @@ import { useFocusEffect, useNavigation, useRouter } from "expo-router";
 import MainSearchBar from "@/components/MainSearchBar";
 import HeaderButton from "@/components/HeaderButton";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  navigateForResult,
-  useActivityResult,
-} from "@/hooks/useNavigateForResult";
+import { useActivityResult } from "@/hooks/useNavigateForResult";
 import CustomFlatList from "@/components/CustomFlatList";
-import CustomListItem from "@/components/CustomListItem";
 import { createSyncManager } from "@/coopsys/db/syncManager";
-import { CommunityModel } from "@/coopsys/models/communityModel";
+
+import { AccountModel } from "@/coopsys/models/accountModel";
+import ProfileListItem from "../../components/ProfileListItem";
+import settingModel from "../../coopsys/models/settingModel";
 
 const baseUrl = process.env.EXPO_PUBLIC_COOP_URL;
-const communityModel = new CommunityModel();
+const accountModel = new AccountModel();
 
-const ListLayout = () => {
-  const navigation = useNavigation();
+const ListLayout = ({ association }) => {
   const router = useRouter();
+
   const [searchResults, setSearchResults] = useState([]);
-  const [searchValue, setSearchValue] = useState(null);
-  const [filterResult, setFilterResult] = useState({});
   const [filterValues, setFilterValues] = useState({});
+  const [searchValue, setSearchValue] = useState(null);
   const [refresh, setRefresh] = useState(false);
-  const { setCallback } = useActivityResult();
   const syncManager = useRef(null);
 
   useEffect(() => {
-    navigation.setOptions({
-      title: "List of Communities",
-      headerBackTitle: "Search",
-      headerRight: () => (
-        <HeaderButton
-          onPress={() => navigation.navigate("communities/edit")}
-          icon={() => <Ionicons color={"blue"} name="add" size={24} />}
-        />
-      ),
-    });
-  }, [navigation]);
-
-  useEffect(() => {
     createSyncManager(baseUrl, {
-      communities: communityModel,
+      accounts: accountModel,
     })
       .then(async (manager) => {
         syncManager.current = manager;
+        handleSearch("");
         handleSync(manager);
-        handleSearch(searchValue);
       })
       .catch((err) => {
         console.log("err", err);
-      })
-      .finally(() => setRefresh(false));
+      });
   }, []);
 
   useEffect(() => {
@@ -75,16 +58,19 @@ const ListLayout = () => {
       })
       .finally(() => handleSearch(searchValue));
   };
-
   // Function to handle search
   const handleSearch = async (query) => {
+    const organization = JSON.parse(
+      await settingModel.getSetting("organization")
+    );
+    filterValues.orgid = organization.orgid;
     try {
       if (query)
-        setSearchResults(await communityModel.search(query, filterValues));
+        setSearchResults(await accountModel.search(query, filterValues));
       else
-        setSearchResults(await communityModel.getRecordByColumns(filterValues));
+        setSearchResults(await accountModel.getRecordByColumns(filterValues));
     } catch (e) {
-      console.log(e);
+      console.log("handleSearch", e);
     } finally {
       setRefresh(false);
     }
@@ -93,37 +79,20 @@ const ListLayout = () => {
 
   const renderItem = ({ item }) => {
     return (
-      <CustomListItem
-        title={item.name}
-        subtitle={item.com_code}
-        isSynced={!!item.server_id}
+      <ProfileListItem
+        name={item.name}
+        given_name={item.given_name}
+        family_name={item.family_name}
+        dateJoined={item.created_at}
+        num={item.acnum}
+        url={item.photo}
         onPress={() => handleItemPress(item)}
       />
     );
   };
   // Handler for clicking on a search item
   const handleItemPress = (item) => {
-    router.push({ pathname: "communities/details", params: item });
-  };
-  const handleFilter = async () => {
-    const result = await navigateForResult(
-      setCallback,
-      router,
-      "menus/filter",
-      {
-        showOffice: true,
-        showRegion: true,
-        showDistrict: true,
-        selected: filterResult,
-      }
-    );
-    setFilterResult(result);
-    const values = {};
-    if (result?.region) values.region_id = result.region.id;
-    if (result?.district) values.district_id = result.district.id;
-    if (result?.office) values.office_id = result.office.id;
-
-    setFilterValues(values);
+    router.push({ pathname: "accounts/details", params: item });
   };
 
   return (
@@ -132,8 +101,6 @@ const ListLayout = () => {
         placeholder="Search for records..."
         onSearch={handleSearch}
         style={styles.searchBar}
-        showFilterButton
-        onFilterPress={handleFilter}
       />
       {/* Display Search Results */}
       <CustomFlatList
@@ -142,9 +109,11 @@ const ListLayout = () => {
         renderItem={renderItem}
         refreshing={refresh}
         onRefresh={() => {
+          handleSync(syncManager.current);
           setRefresh(true);
           handleSearch(searchValue);
         }}
+        listStyle={{ margin: 0 }}
       />
     </View>
   );
@@ -156,6 +125,5 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f9f9f9",
-    paddingTop: 10,
   },
 });

@@ -34,13 +34,13 @@ api.interceptors.response.use(
 
       // Request a new token using the refresh token
       try {
-        const data = await axios.post(
+        const { data } = await axios.post(
           `${process.env.EXPO_PUBLIC_ACCOUNTS_URL}/auth/refresh`,
           {
             refresh_token: refreshToken,
           }
         );
-
+    
         // Save the new token
         await settingModel.setAccessToken(data.access_token);
         await settingModel.setRefreshToken(data.refresh_token);

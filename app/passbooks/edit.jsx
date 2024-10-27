@@ -23,18 +23,45 @@ export default function Edit() {
   const [associationItem, setAssociationItem] = useState(data?.association);
   const [typesItem, setTypesItem] = useState(data?.account_types);
   const [editDone, setEditDone] = useState(false);
+  const [community, setCommunity] = useState(data?.community);
+  const [office, setOffice] = useState(data?.office);
+  const [loading, setLoading] = useState(data?.id);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleDone = () => {
-    const formData = {
-      passbook: passbook,
-      account_id: accountItem.id,
-      association_id: associationItem.id,
-      account_types: typesItem,
-    };
-    console.log(formData);
-  };
   const handleCancel = () => {
-    navigation.goBack();
+    router.dismiss();
+  };
+
+  const handleSave = async () => {
+    setSubmitting(true);
+    try {
+      const organization = JSON.parse(
+        await settingModel.getSetting("organization")
+      );
+      const lastid = (await communityModel.lastId()) + 1;
+      const data = {
+        id: lastid,
+        ...formValues,
+        community_id: community?.server_id,
+        office_id: office?.server_id,
+        orgid: organization.orgid,
+        owner: user.owner,
+        creator: user.id,
+        updated_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      };
+      await associationModel.saveRecord(data);
+      handleSuccess(await associationModel.getOneByColumns({ id: lastid }));
+    } catch (e) {
+      console.log("handleSave", e);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSuccess = (data) => {
+    router.dismiss();
+    router.push({ pathname: "associations/details", params: data });
   };
 
   useEffect(() => {
@@ -47,12 +74,12 @@ export default function Edit() {
       headerRight: () => (
         <HeaderButton
           title={"Save"}
-          disabled={!editDone}
+          disabled={!editDone || submitting}
           onPress={handleDone}
         />
       ),
     });
-  }, [navigation, editDone]);
+  }, [navigation, editDone, submitting]);
 
   const handleAccountMenu = async () => {
     const data = await navigateForResult(

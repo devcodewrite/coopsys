@@ -19,7 +19,7 @@ export class OrganizationModel extends BaseModel {
   async search(search_term, where = {}) {
     let values = [],
       conditions = 1;
-    if (where && where.length > 0) {
+    if (where && Object.keys(where).length > 0) {
       values = Object.values(where);
       const columns = Object.keys(where);
 
@@ -27,7 +27,7 @@ export class OrganizationModel extends BaseModel {
     }
 
     return await this.db.getAllAsync(
-      `SELECT * FROM ${this.tableName} WHERE deleted_at IS NULL AND ${conditions} AND LIKE '%${search_term}%';`,
+      `SELECT * FROM ${this.tableName} WHERE deleted_at IS NULL AND ${conditions} AND name LIKE '%${search_term}%';`,
       values
     );
   }

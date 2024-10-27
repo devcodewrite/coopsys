@@ -10,6 +10,7 @@ import {
 import { Icon } from "@rneui/themed";
 
 const SelectDialog = ({
+  style = StyleSheet.create(),
   label,
   value,
   onPress,
@@ -17,7 +18,7 @@ const SelectDialog = ({
   loading = false,
 }) => {
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, style]}>
       {/* Display button for the selected value */}
       <Text style={styles.label}>{label}</Text>
       <TouchableOpacity style={styles.selectedValueButton} onPress={onPress}>

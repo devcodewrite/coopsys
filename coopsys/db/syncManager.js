@@ -1,8 +1,6 @@
 // SyncManager.js
 import * as SQLite from "expo-sqlite";
 import NetInfo from "@react-native-community/netinfo";
-
-import api from "../apis/api"; // Import your Axios instance
 import settingModel from "../models/settingModel";
 
 const DB_VERSION = process.env.EXPO_PUBLIC_DB_VERSION ?? 1;
@@ -20,7 +18,7 @@ export class SyncManager {
 
   // Initialize the SQLite database and models
   async init() {
-    this.db = await SQLite.openDatabaseAsync("app_6.db");
+    this.db = await SQLite.openDatabaseAsync("app_11.db");
 
     // Manage database versioning
     const storedVersion = parseInt(await settingModel.getDbVersion(), 10) ?? 0;
@@ -60,7 +58,7 @@ export class SyncManager {
   }
 
   // Sync logic for all tables
-  async sync() {
+  async sync(lastSyncTime = null) {
     if (this.isSyncing) {
       console.log("Sync already in progress...");
       return;
@@ -71,16 +69,13 @@ export class SyncManager {
       // Sync each table individually
       for (const table in this.tables) {
         // Get the last sync time
-        const lastSyncTime =
-          (await settingModel.getLastSyncTime(table)) ||
-          "1970-01-01T00:00:00.000Z";
+        if (!lastSyncTime)
+          lastSyncTime =
+            (await settingModel.getLastSyncTime(table)) ||
+            "1970-01-01T00:00:00.000Z";
 
         console.log(`syncing table: ${table}`);
-        await this.syncTable(table, lastSyncTime);
-
-        // Update the last sync time after successful sync
-        const currentTime = new Date().toISOString();
-        await settingModel.setLastSyncTime(table, currentTime);
+        await this.tables[table].syncTable(this.apiEndpoint, lastSyncTime);
       }
 
       // Reset retry delay after successful sync
@@ -91,58 +86,6 @@ export class SyncManager {
       this.scheduleRetry();
     } finally {
       this.isSyncing = false; // Ensure isSyncing is reset
-    }
-  }
-  // Sync a single table
-  async syncTable(table, lastSyncTime) {
-    const model = this.tables[table];
-    try {
-      console.log("syncing at:", lastSyncTime);
-      // Fetch updates from the server
-      const response = await api.get(`${this.apiEndpoint}${table}/sync-pull`, {
-        params: { lastSyncTime },
-      });
-      const { updated, deleted } = response?.data;
-      const error = "sync pull endpoint not properly set.";
-
-      if (!updated || !deleted) throw error;
-      const changes = [].concat(updated, deleted);
-
-      // Save server changes to local SQLite
-      await model.saveServerChanges(changes);
-
-      // Fetch and push local changes
-      const modifiedRecords = await model.getModifiedRecords(lastSyncTime);
-      const deletedRecords = await model.getDeletedRecords();
-
-      if (modifiedRecords.length > 0 || deletedRecords.length > 0) {
-        const changes = {
-          updated: modifiedRecords,
-          deleted: deletedRecords,
-        };
-
-        api
-          .post(`${this.apiEndpoint}${table}/sync-push`, changes)
-          .then(
-            (result) => {
-              console.log("result", result);
-            },
-            (reason) => {
-              console.log("Request Rejected:", reason);
-            }
-          )
-          .catch((error) => {
-            if (error.code === "ECONNABORTED") {
-              console.log("Request timeout error:", error.message);
-              throw error;
-            } else {
-              console.log("An error occurred:", error.message);
-            }
-          });
-      }
-    } catch (error) {
-      console.error(`Sync Error for table ${table}:`, error);
-      throw error;
     }
   }
 

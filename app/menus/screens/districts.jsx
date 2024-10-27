@@ -8,7 +8,7 @@ import MainSearchBar from "@/components/MainSearchBar";
 import HeaderButton from "@/components/HeaderButton";
 import SelectableFlatList from "@/components/SelectableFlatList";
 import { useActivityResult } from "@/hooks/useNavigateForResult";
-import { DistrictModel } from "@/coopsys/models/districtModel";
+import { DistrictModel } from "@/coopsys/models";
 import { createSyncManager } from "@/coopsys/db/syncManager";
 
 const districtModel = new DistrictModel();
@@ -22,8 +22,9 @@ const MenuLayout = () => {
   const { data } = route.params ?? {};
   const { multiSelect, selected, regionId } = data ? JSON.parse(data) : {};
 
-  const [selectedItems, setSelectedItems] = useState([]);
+  const [selectedItems, setSelectedItems] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
+  const [loading, setLoading] = useState(false);
   const syncManager = useRef(null);
 
   const handleSelectItem = (selected) => {
@@ -52,7 +53,7 @@ const MenuLayout = () => {
       headerRight: () => (
         <HeaderButton
           title={"Done"}
-          disabled={!selectedItems.length}
+          disabled={!selectedItems}
           onPress={handleNext}
         />
       ),
@@ -71,14 +72,23 @@ const MenuLayout = () => {
         );
       })
       .catch((err) => {
-        console.log("err", err);AS
+        console.log("err", err);
       });
   }, []);
 
-  const handleSync = (manager) => {
-    manager.sync().catch((err) => {
-      console.log("sync error", err);
-    });
+  const handleSync = (manager, lastSyncTime = null) => {
+    manager
+      .sync(lastSyncTime)
+      .catch((err) => {
+        console.log("sync error", err);
+      })
+      .finally(async () => {
+        if (searchResults.length === 0 || lastSyncTime)
+          setSearchResults(
+            await districtModel.getRecordByColumns({ region_id: regionId })
+          );
+        setLoading(false);
+      });
   };
   // Function to handle search
   const handleSearch = async (query) => {
@@ -107,7 +117,11 @@ const MenuLayout = () => {
         data={searchResults}
         selectedItems={selected}
         onSelectItem={handleSelectItem}
-        renderText={(item) => <Text>{item.name}</Text>}
+        onRefresh={() =>
+          handleSync(syncManager.current, "1970-01-01T00:00:00.000Z")
+        }
+        refreshing={loading}
+        renderText={(item) => <Text>{item.name} {item.category}</Text>}
         placeholder={regionId ? null : "Please select a region first."}
       />
     </View>

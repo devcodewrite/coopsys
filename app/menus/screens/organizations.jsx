@@ -10,14 +10,18 @@ import SelectableFlatList from "@/components/SelectableFlatList";
 import { useActivityResult } from "@/hooks/useNavigateForResult";
 import { OrganizationModel } from "@/coopsys/models/organizationModel";
 import { createSyncManager } from "@/coopsys/db/syncManager";
+import { useAuth } from "@/coopsys/auth/AuthProvider";
+import api from "@/coopsys/apis/api";
 
 const organizationModel = new OrganizationModel();
+const coopBaseUrl = process.env.EXPO_PUBLIC_COOP_URL;
 
 const MenuLayout = () => {
   const navigation = useNavigation();
   const router = useRouter();
   const route = useRouteInfo();
   const { callback2 } = useActivityResult();
+  const { user } = useAuth();
 
   const { data } = route.params ?? {};
   const { multiSelect, selected } = data ? JSON.parse(data) : {};
@@ -36,11 +40,11 @@ const MenuLayout = () => {
       callback2(
         searchResults.filter((item) => selectedItems.includes(item.orgid))
       );
-    router.back();
+    router.dismiss(1);
   };
   const handleCancel = () => {
     if (callback2) callback2([]);
-    router.back();
+    router.dismiss();
   };
 
   useEffect(() => {
@@ -79,6 +83,31 @@ const MenuLayout = () => {
     else setSearchResults(await organizationModel.getAllRecords());
   };
 
+  const handleFetch = () => {
+    api
+      .get(`${coopBaseUrl}/organizations?filters[owner]=${user.owner}`)
+      .then(
+        async (result) => {
+          const { data } = result;
+          if (data.status) {
+            await organizationModel.saveChanges(data.data);
+            setSearchResults(await organizationModel.getAllRecords());
+          }
+        },
+        ({ response }) => {
+          const { data } = response;
+          console.log("Request Rejected:", data);
+        }
+      )
+      .catch((error) => {
+        if (error.code === "ECONNABORTED") {
+          console.log("Request timeout error:", error.message);
+        } else {
+          console.log("An error occurred:", error.message);
+        }
+      });
+  };
+
   return (
     <View style={styles.container}>
       <MainSearchBar
@@ -92,7 +121,7 @@ const MenuLayout = () => {
         data={searchResults.map((item) => ({ ...item, id: item.orgid }))}
         selectedItems={selected}
         onSelectItem={handleSelectItem}
-       // onRefresh={() => handleSync(syncManager.current)}
+        onRefresh={handleFetch}
         refreshing={loading}
         renderText={(item) => <Text>{item.name}</Text>}
       />

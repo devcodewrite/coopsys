@@ -90,7 +90,10 @@ export default function FilterScreen() {
       setCallback2,
       router,
       "menus/screens/districts",
-      { selected: districtItem ? [districtItem.id] : [], regionId:regionItem?.id }
+      {
+        selected: districtItem ? [districtItem.id] : [],
+        regionId: regionItem?.id,
+      }
     );
     if (data && data.length > 0) {
       setDistrictItem(data[0]);
@@ -138,10 +141,12 @@ export default function FilterScreen() {
   };
 
   const handleDateRange = (startDate, endDate) => {
+    setDateRangeItem({ startDate, endDate });
     setResult({ ...result, dateRange: { startDate, endDate } });
   };
 
   const handleSingleDate = (date) => {
+    setDateItem(date);
     setResult({ ...result, date });
   };
 
