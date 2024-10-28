@@ -95,7 +95,7 @@ const DetailsLayout = () => {
             },
             {
               title: "District",
-              value: `${district?.name} ${district?.category}`,
+              value: `${district?.name || ""} ${district?.category || ""}`,
               icon: { name: "location", type: "ionicon" },
             },
           ]}

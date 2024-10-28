@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { useNavigation, useRouter } from "expo-router";
+import { useFocusEffect, useNavigation, useRouter } from "expo-router";
 
 import MainSearchBar from "@/components/MainSearchBar";
 import HeaderButton from "@/components/HeaderButton";
@@ -36,7 +36,7 @@ const ListLayout = () => {
       headerBackTitle: "Search",
       headerRight: () => (
         <HeaderButton
-          onPress={() => navigation.navigate("passbooks/edit")}
+          onPress={() => navigation.navigate("offices/edit")}
           icon={() => <Ionicons color={"blue"} name="add" size={24} />}
         />
       ),
@@ -56,6 +56,13 @@ const ListLayout = () => {
         console.log("err", err);
       });
   }, [filterValues]);
+
+  useFocusEffect(
+    useCallback(() => {
+      syncManager.current && handleSync(syncManager.current);
+      return () => {};
+    }, [])
+  );
 
   const handleSync = (manager) => {
     manager

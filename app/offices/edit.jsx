@@ -180,7 +180,7 @@ export default function Edit() {
           loading={loading}
           label={"Select District"}
           placeholder={"Select a district"}
-          value={`${district?.name} ${district?.category}`}
+          value={district ? `${district?.name} ${district?.category}` : null}
           onPress={handleDistrictMenu}
         />
       </View>

@@ -50,11 +50,14 @@ export default function Edit() {
       if (data?.id) {
         const newData = {
           ...data,
-          account_id: account?.server_id,
-          association_id: association?.server_id,
+          acnum: account.acnum,
+          account_id: account.server_id,
+          association_id: association.server_id,
+          assoc_code: association.assoc_code,
           updated_at: new Date().toISOString(),
         };
         await passbookModel.saveRecord(newData);
+
         callback(newData);
         router.dismiss();
       } else {
@@ -64,8 +67,11 @@ export default function Edit() {
         const lastid = (await passbookModel.lastId()) + 1;
         const data = {
           id: lastid,
-          account_id: account?.server_id,
-          association_id: association?.server_id,
+          pbnum: null,
+          account_id: account.server_id,
+          acnum: account.acnum,
+          association_id: association.server_id,
+          assoc_code: association.assoc_code,
           orgid: organization.orgid,
           owner: user.owner,
           creator: user.id,
@@ -90,7 +96,7 @@ export default function Edit() {
   useEffect(() => {
     navigation.setOptions({
       presentation: "modal",
-      title: route.params?.data ? data : "New Passbook",
+      title: data?.id ? data.pbnum : "New Passbook",
       headerLeft: () => (
         <HeaderButton bolded={false} title={"Cancel"} onPress={handleCancel} />
       ),
@@ -108,6 +114,7 @@ export default function Edit() {
     createSyncManager(baseUrl, {
       accounts: accountModel,
       associations: associationModel,
+      passbooks: passbookModel,
     })
       .then(async (manager) => {
         syncManager.current = manager;
@@ -177,7 +184,7 @@ export default function Edit() {
   return (
     <ScrollView showsVerticalScrollIndicator={false} style={styles.container}>
       <TextInput
-        initialValue={"Auto assigned"}
+        initialValue={data?.id ? data.pbnum : "Auto assigned"}
         label={"Passbook No."}
         placeholder={"Passbook No."}
         disabled

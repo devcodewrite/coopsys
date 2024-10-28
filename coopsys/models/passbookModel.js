@@ -11,7 +11,6 @@ export class PassbookModel extends BaseModel {
       account_id: "INTEGER",
       association_id: "INTEGER",
       assoc_code:  "VARCHAR(10)",
-      office_id: "INTEGER",
       orgid: "VARCHAR(10)",
       creator: "VARCHAR(40)",
       owner: "VARCHAR(40)",
