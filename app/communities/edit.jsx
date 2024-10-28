@@ -19,7 +19,6 @@ import {
   OfficeModel,
   CommunityModel,
 } from "@/coopsys/models";
-import settingModel from "@/coopsys/models/settingModel";
 
 const regionModel = new RegionModel();
 const districtModel = new DistrictModel();
@@ -45,10 +44,10 @@ export default function Edit() {
   const router = useRouter();
   const route = useRouteInfo();
   const { user } = useAuth();
-  const { setCallback2 } = useActivityResult();
+  const { callback, setCallback2 } = useActivityResult();
   const syncManager = useRef(null);
-
-  const { data } = route.params?.data || { data: {} };
+  const { data: result } = route.params ?? {};
+  const data = result ? JSON.parse(result) : {};
   const [formValues, setFormValues] = useState(data);
   const [region, setRegion] = useState(data?.region);
   const [district, setDistrict] = useState(data?.district);
@@ -63,20 +62,34 @@ export default function Edit() {
   const handleSave = async () => {
     setSubmitting(true);
     try {
-      const lastid = (await communityModel.lastId()) + 1;
-      const data = {
-        id: lastid,
-        ...formValues,
-        district_id: district?.server_id,
-        region_id: region?.server_id,
-        office_id: office?.server_id,
-        owner: user.owner,
-        creator: user.id,
-        updated_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-      };
-      await communityModel.saveRecord(data);
-      handleSuccess(await communityModel.getOneByColumns({ id: lastid }));
+      if (data?.id) {
+        const newData = {
+          ...data,
+          ...formValues,
+          district_id: district?.server_id,
+          region_id: region?.server_id,
+          office_id: office?.server_id,
+          updated_at: new Date().toISOString(),
+        };
+        await communityModel.saveRecord(newData);
+        callback(newData);
+        router.dismiss();
+      } else {
+        const lastid = (await communityModel.lastId()) + 1;
+        const data = {
+          id: lastid,
+          ...formValues,
+          district_id: district?.server_id,
+          region_id: region?.server_id,
+          office_id: office?.server_id,
+          owner: user.owner,
+          creator: user.id,
+          updated_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        };
+        await communityModel.saveRecord(data);
+        handleSuccess(await communityModel.getOneByColumns({ id: lastid }));
+      }
     } catch (e) {
       console.log("handleSave", e);
     } finally {
@@ -119,11 +132,15 @@ export default function Edit() {
           console.log("sync error", err);
         });
         if (data) {
-          setRegion(await regionModel.getOneByColumns({ id: data.region_id }));
-          setDistrict(
-            await districtModel.getOneByColumns({ id: data.district_id })
+          setRegion(
+            await regionModel.getOneByColumns({ server_id: data.region_id })
           );
-          setOffice(await officeModel.getOneByColumns({ id: data.office_id }));
+          setDistrict(
+            await districtModel.getOneByColumns({ server_id: data.district_id })
+          );
+          setOffice(
+            await officeModel.getOneByColumns({ server_id: data.office_id })
+          );
         }
         setLoading(false);
       })

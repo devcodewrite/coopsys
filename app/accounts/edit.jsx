@@ -1,17 +1,13 @@
 // screens/accounts/AccountEdit.js
 import React, { useEffect, useRef, useState } from "react";
-import { KeyboardAvoidingView, ScrollView, View } from "react-native";
+import { KeyboardAvoidingView, ScrollView } from "react-native";
 import FormWrapper from "@/components/FormWrapper";
 import { useNavigation, useRouter } from "expo-router";
 
 import HeaderButton from "@/components/HeaderButton";
 import { useRouteInfo } from "expo-router/build/hooks";
 import { validateInput } from "@/components/inputs/TextInput";
-import {
-  navigateForResult,
-  useActivityResult,
-} from "@/hooks/useNavigateForResult";
-import SelectDialog from "@/components/inputs/SelectDialog";
+import { useActivityResult } from "@/hooks/useNavigateForResult";
 import { createSyncManager } from "@/coopsys/db/syncManager";
 import { useAuth } from "@/coopsys/auth/AuthProvider";
 import settingModel from "../../coopsys/models/settingModel";
@@ -151,16 +147,18 @@ export default function EditLayout() {
   const router = useRouter();
   const syncManager = useRef(null);
   const { user } = useAuth();
+  const { callback } = useActivityResult();
+  const { data: result } = route.params ?? {};
+  const data = result
+    ? JSON.parse(result)
+    : {
+        photo: "",
+        title: "",
+        name: "",
+        given_name: "",
+        family_name: "",
+      };
 
-  const { data } = route.params?.data || {
-    data: {
-      photo: "",
-      title: "",
-      name: "",
-      given_name: "",
-      family_name: "",
-    },
-  };
   const [formValues, setFormValues] = useState(data);
   const [loading, setLoading] = useState(data?.id);
   const [submitting, setSubmitting] = useState(false);
@@ -171,19 +169,31 @@ export default function EditLayout() {
       const organization = JSON.parse(
         (await settingModel.getSetting("organization")) || ""
       );
-      const lastid = (await accountModel.lastId()) + 1;
 
-      const data = {
-        id: lastid,
-        ...formValues,
-        orgid: organization.orgid,
-        owner: user.owner,
-        creator: user?.id,
-        updated_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-      };
-      await accountModel.saveRecord(data);
-      handleSuccess(await accountModel.getOneByColumns({ id: lastid }));
+      if (data?.id) {
+        const newData = {
+          ...data,
+          ...formValues,
+          updated_at: new Date().toISOString(),
+        };
+        console.log("formValues",formValues);
+        await accountModel.saveRecord(newData);
+        callback(newData);
+        router.dismiss();
+      } else {
+        const lastid = (await accountModel.lastId()) + 1;
+        const newData = {
+          id: lastid,
+          ...formValues,
+          orgid: organization.orgid,
+          owner: user.owner,
+          creator: user?.id,
+          updated_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        };
+        await accountModel.saveRecord(newData);
+        handleSuccess(await accountModel.getOneByColumns({ id: lastid }));
+      }
     } catch (e) {
       console.log("handleSave", e);
     } finally {

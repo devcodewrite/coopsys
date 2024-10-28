@@ -20,9 +20,8 @@ const DetailsLayout = () => {
 
   useEffect(() => {
     navigation.setOptions({
-      title: data.pbnum,
+      title: data.pbnum || "Passbook",
       headerRight: () => <HeaderButton title={"Edit"} onPress={handleEdit} />,
-      headerTransparent: true,
     });
   }, [navigation, route]);
 
@@ -30,8 +29,8 @@ const DetailsLayout = () => {
     const result = await navigateForResult(
       setCallback,
       router,
-      "offices/edit",
-      { data: data }
+      "passbooks/edit",
+      data
     );
     setData(result);
   };

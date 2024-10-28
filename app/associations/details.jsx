@@ -51,8 +51,8 @@ const DetailsLayout = () => {
     const result = await navigateForResult(
       setCallback,
       router,
-      "offices/edit",
-      { data: data }
+      "associations/edit",
+      data
     );
     setData(result);
   };

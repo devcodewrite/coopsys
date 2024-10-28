@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useNavigation, useRouter } from "expo-router";
 import { Text } from "@rneui/themed";
@@ -6,9 +6,13 @@ import { Text } from "@rneui/themed";
 import MainSearchBar from "@/components/MainSearchBar";
 import HeaderButton from "@/components/HeaderButton";
 import SelectableFlatList from "@/components/SelectableFlatList";
-import { ACCOUNT_DATA } from "@/constants/Resources";
 import { useActivityResult } from "@/hooks/useNavigateForResult";
 import { useRouteInfo } from "expo-router/build/hooks";
+import settingModel from "../../../coopsys/models/settingModel";
+import { AccountModel } from "@/coopsys/models";
+import { createSyncManager } from "@/coopsys/db/syncManager";
+
+const accountModel = new AccountModel();
 
 const MenuLayout = () => {
   const navigation = useNavigation();
@@ -19,7 +23,12 @@ const MenuLayout = () => {
   const { multiSelect, selected } = data ? JSON.parse(data) : {};
 
   const [selectedItems, setSelectedItems] = useState([]);
-  const [searchResults, setSearchResults] = useState(ACCOUNT_DATA);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchValue, setSearchValue] = useState(null);
+  const [filterResult, setFilterResult] = useState({});
+  const [filterValues, setFilterValues] = useState({});
+  const [refresh, setRefresh] = useState(false);
+  const syncManager = useRef(null);
 
   const handleSelectItem = (selected) => {
     setSelectedItems(selected);
@@ -27,9 +36,12 @@ const MenuLayout = () => {
 
   const handleNext = () => {
     if (callback2)
-      callback2(ACCOUNT_DATA.filter((item) => selectedItems.includes(item.id)));
+      callback2(
+        searchResults.filter((item) => selectedItems.includes(item.id))
+      );
     router.back();
   };
+
   const handleCancel = () => {
     if (callback2) callback2([]);
     router.back();
@@ -52,16 +64,50 @@ const MenuLayout = () => {
     });
   }, [navigation, selectedItems]);
 
+  useEffect(() => {
+    createSyncManager(process.env.EXPO_PUBLIC_COOP_URL, {
+      accounts: accountModel,
+    })
+      .then(async (manager) => {
+        syncManager.current = manager;
+        handleSearch("");
+        handleSync(manager);
+      })
+      .catch((err) => {
+        console.log("err", err);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (syncManager.current) handleSearch(searchValue);
+  }, [filterValues]);
+
+  const handleSync = (manager) => {
+    manager
+      .sync()
+      .catch((err) => {
+        console.log("sync error", err);
+      })
+      .finally(() => handleSearch(searchValue));
+  };
   // Function to handle search
-  const handleSearch = (query) => {
-    if (query) {
-      const filteredData = ACCOUNT_DATA.filter((item) =>
-        item.title.toLowerCase().includes(query.toLowerCase())
-      );
-      setSearchResults(filteredData);
-    } else {
-      setSearchResults(ACCOUNT_DATA);
+  const handleSearch = async (query) => {
+    const organization = JSON.parse(
+      await settingModel.getSetting("organization")
+    );
+    filterValues.orgid = organization.orgid;
+
+    try {
+      if (query)
+        setSearchResults(await accountModel.search(query, filterValues));
+      else
+        setSearchResults(await accountModel.getRecordByColumns(filterValues));
+    } catch (e) {
+      console.log("handleSearch", e);
+    } finally {
+      setRefresh(false);
     }
+    setSearchValue(query);
   };
 
   return (
@@ -77,6 +123,11 @@ const MenuLayout = () => {
         data={searchResults}
         selectedItems={selected}
         onSelectItem={handleSelectItem}
+        onRefresh={() => {
+          setRefresh(true);
+          handleSync(syncManager.current, "1970-01-01T00:00:00.000Z");
+        }}
+        refreshing={refresh}
         renderText={(item) => <Text>{item.name}</Text>}
       />
     </View>

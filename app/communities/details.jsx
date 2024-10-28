@@ -1,23 +1,33 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useNavigation, useRouter } from "expo-router";
 
 import HeaderButton from "@/components/HeaderButton";
 import { useRouteInfo } from "expo-router/build/hooks";
-import { Skeleton, Text } from "@rneui/themed";
+import { Text } from "@rneui/themed";
+import { Label } from "@/components/Label";
 import {
   navigateForResult,
   useActivityResult,
 } from "@/hooks/useNavigateForResult";
+import { createSyncManager } from "@/coopsys/db/syncManager";
+import { OfficeModel, RegionModel, DistrictModel } from "@/coopsys/models";
+
+const baseUrl = process.env.EXPO_PUBLIC_COOP_URL;
+const officeModel = new OfficeModel();
+const regionModel = new RegionModel();
+const districtModel = new DistrictModel();
 
 const DetailsLayout = () => {
   const navigation = useNavigation();
   const router = useRouter();
   const route = useRouteInfo();
-
+  const syncManager = useRef(null);
   const { setCallback } = useActivityResult();
   const [data, setData] = useState(route.params);
   const [office, setOffice] = useState(null);
+  const [region, setRegion] = useState(null);
+  const [district, setDistrict] = useState(null);
 
   useEffect(() => {
     navigation.setOptions({
@@ -31,12 +41,34 @@ const DetailsLayout = () => {
     const result = await navigateForResult(
       setCallback,
       router,
-      "offices/edit",
-      { data: data }
+      "communities/edit",
+      data
     );
     setData(result);
   };
 
+  useEffect(() => {
+    createSyncManager(baseUrl, {
+      offices: officeModel,
+      regions: regionModel,
+      district: districtModel,
+    })
+      .then(async (manager) => {
+        syncManager.current = manager;
+        setOffice(
+          await officeModel.getOneByColumns({ server_id: data.office_id })
+        );
+        setRegion(
+          await regionModel.getOneByColumns({ server_id: data.region_id })
+        );
+        setDistrict(
+          await districtModel.getOneByColumns({ server_id: data.district_id })
+        );
+      })
+      .catch((err) => {
+        console.log("err", err);
+      });
+  }, []);
   if (!data) return;
 
   return (
@@ -47,15 +79,28 @@ const DetailsLayout = () => {
           <Text style={styles.subtitle}>{data.com_code}</Text>
           <Text style={styles.date}>Added on: {data.created_at}</Text>
         </View>
-        {office ? (
-          <View style={styles.subContainer}>
-            <Text style={styles.subtitle2}>Office: {office.name}</Text>
-          </View>
-        ) : null}
       </View>
-
       <View style={styles.middleContainer}>
-        <View style={styles.subContainer}></View>
+        <Label
+          data={[
+            {
+              title: "Office",
+              value: office?.name,
+              icon: { name: "business", type: "ionicon" },
+            },
+            {
+              title: "Region",
+              value: region?.name,
+              icon: { name: "location", type: "ionicon" },
+            },
+            {
+              title: "District",
+              value: `${district?.name} ${district?.category}`,
+              icon: { name: "location", type: "ionicon" },
+            },
+          ]}
+          heading="Location"
+        />
       </View>
     </View>
   );
@@ -96,13 +141,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "200",
   },
-
   middleContainer: {
-    alignItems: "center",
-    padding: 16,
-    marginHorizontal: 16,
+    gap: 2,
     marginVertical: 16,
-    borderRadius: 16,
-    backgroundColor: "#fff",
+    paddingHorizontal: 16,
   },
 });

@@ -42,13 +42,13 @@ export default function Edit() {
   const router = useRouter();
   const route = useRouteInfo();
   const { user } = useAuth();
-  const { setCallback2 } = useActivityResult();
+  const { callback, setCallback2 } = useActivityResult();
   const syncManager = useRef(null);
-
-  const { data } = route.params?.data || { data: {} };
+  const { data: result } = route.params ?? {};
+  const data = result ? JSON.parse(result) : {};
   const [formValues, setFormValues] = useState(data);
-  const [community, setCommunity] = useState(data?.community);
-  const [office, setOffice] = useState(data?.office);
+  const [community, setCommunity] = useState(null);
+  const [office, setOffice] = useState(null);
   const [loading, setLoading] = useState(data?.id);
   const [submitting, setSubmitting] = useState(false);
 
@@ -59,23 +59,36 @@ export default function Edit() {
   const handleSave = async () => {
     setSubmitting(true);
     try {
-      const organization = JSON.parse(
-        await settingModel.getSetting("organization")
-      );
-      const lastid = (await communityModel.lastId()) + 1;
-      const data = {
-        id: lastid,
-        ...formValues,
-        community_id: community?.server_id,
-        office_id: office?.server_id,
-        orgid: organization.orgid,
-        owner: user.owner,
-        creator: user.id,
-        updated_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-      };
-      await associationModel.saveRecord(data);
-      handleSuccess(await associationModel.getOneByColumns({ id: lastid }));
+      if (data?.id) {
+        const newData = {
+          ...data,
+          ...formValues,
+          community_id: community?.server_id,
+          office_id: office?.server_id,
+          updated_at: new Date().toISOString(),
+        };
+        await associationModel.saveRecord(newData);
+        callback(newData);
+        router.dismiss();
+      } else {
+        const organization = JSON.parse(
+          await settingModel.getSetting("organization")
+        );
+        const lastid = (await communityModel.lastId()) + 1;
+        const data = {
+          id: lastid,
+          ...formValues,
+          community_id: community?.server_id,
+          office_id: office?.server_id,
+          orgid: organization.orgid,
+          owner: user.owner,
+          creator: user.id,
+          updated_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        };
+        await associationModel.saveRecord(data);
+        handleSuccess(await associationModel.getOneByColumns({ id: lastid }));
+      }
     } catch (e) {
       console.log("handleSave", e);
     } finally {
@@ -116,11 +129,15 @@ export default function Edit() {
         manager.sync().catch((err) => {
           console.log("sync error", err);
         });
-        if (data) {
+        if (data?.id) {
           setCommunity(
-            await communityModel.getOneByColumns({ id: data.community_id })
+            await communityModel.getOneByColumns({
+              server_id: data.community_id,
+            })
           );
-          setOffice(await officeModel.getOneByColumns({ id: data.office_id }));
+          setOffice(
+            await officeModel.getOneByColumns({ server_id: data.office_id })
+          );
         }
         setLoading(false);
       })

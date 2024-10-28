@@ -1,5 +1,5 @@
 // screens/accounts/AccountEdit.js
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { StyleSheet, ScrollView } from "react-native";
 import { useNavigation } from "expo-router";
 import { useRouteInfo, useRouter } from "expo-router/build/hooks";
@@ -10,21 +10,33 @@ import {
 } from "@/hooks/useNavigateForResult";
 import SelectDialog from "@/components/inputs/SelectDialog";
 import TextInput from "@/components/inputs/TextInput";
+import {
+  AccountModel,
+  PassbookModel,
+  AssociationModel,
+} from "@/coopsys/models";
+import { createSyncManager } from "@/coopsys/db/syncManager";
+import { useAuth } from "@/coopsys/auth/AuthProvider";
+import settingModel from "../../coopsys/models/settingModel";
+
+const baseUrl = process.env.EXPO_PUBLIC_COOP_URL;
+const accountModel = new AccountModel();
+const passbookModel = new PassbookModel();
+const associationModel = new AssociationModel();
 
 export default function Edit() {
   const router = useRouter();
   const route = useRouteInfo();
   const navigation = useNavigation();
-  const { setCallback2 } = useActivityResult();
-
-  const { data } = route.params?.data || { data: {} };
-  const [passbook, setPassbook] = useState(data?.passbook);
-  const [accountItem, setAccountItem] = useState(data?.account);
-  const [associationItem, setAssociationItem] = useState(data?.association);
-  const [typesItem, setTypesItem] = useState(data?.account_types);
+  const { callback, setCallback2 } = useActivityResult();
+  const syncManager = useRef(null);
+  const { user } = useAuth();
+  const { data: result } = route.params ?? {};
+  const data = result ? JSON.parse(result) : {};
+  const [account, setAccount] = useState(null);
+  const [association, setAssociation] = useState(null);
+  const [typesItem, setTypesItem] = useState(null);
   const [editDone, setEditDone] = useState(false);
-  const [community, setCommunity] = useState(data?.community);
-  const [office, setOffice] = useState(data?.office);
   const [loading, setLoading] = useState(data?.id);
   const [submitting, setSubmitting] = useState(false);
 
@@ -35,23 +47,34 @@ export default function Edit() {
   const handleSave = async () => {
     setSubmitting(true);
     try {
-      const organization = JSON.parse(
-        await settingModel.getSetting("organization")
-      );
-      const lastid = (await communityModel.lastId()) + 1;
-      const data = {
-        id: lastid,
-        ...formValues,
-        community_id: community?.server_id,
-        office_id: office?.server_id,
-        orgid: organization.orgid,
-        owner: user.owner,
-        creator: user.id,
-        updated_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-      };
-      await associationModel.saveRecord(data);
-      handleSuccess(await associationModel.getOneByColumns({ id: lastid }));
+      if (data?.id) {
+        const newData = {
+          ...data,
+          account_id: account?.server_id,
+          association_id: association?.server_id,
+          updated_at: new Date().toISOString(),
+        };
+        await passbookModel.saveRecord(newData);
+        callback(newData);
+        router.dismiss();
+      } else {
+        const organization = JSON.parse(
+          await settingModel.getSetting("organization")
+        );
+        const lastid = (await passbookModel.lastId()) + 1;
+        const data = {
+          id: lastid,
+          account_id: account?.server_id,
+          association_id: association?.server_id,
+          orgid: organization.orgid,
+          owner: user.owner,
+          creator: user.id,
+          updated_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        };
+        await passbookModel.saveRecord(data);
+        handleSuccess(await passbookModel.getOneByColumns({ id: lastid }));
+      }
     } catch (e) {
       console.log("handleSave", e);
     } finally {
@@ -61,7 +84,7 @@ export default function Edit() {
 
   const handleSuccess = (data) => {
     router.dismiss();
-    router.push({ pathname: "associations/details", params: data });
+    router.push({ pathname: "passbooks/details", params: data });
   };
 
   useEffect(() => {
@@ -75,21 +98,45 @@ export default function Edit() {
         <HeaderButton
           title={"Save"}
           disabled={!editDone || submitting}
-          onPress={handleDone}
+          onPress={handleSave}
         />
       ),
     });
   }, [navigation, editDone, submitting]);
+
+  useEffect(() => {
+    createSyncManager(baseUrl, {
+      accounts: accountModel,
+      associations: associationModel,
+    })
+      .then(async (manager) => {
+        syncManager.current = manager;
+        if (data?.id) {
+          setAccount(
+            await accountModel.getOneByColumns({ server_id: data.account_id })
+          );
+          setAssociation(
+            await associationModel.getOneByColumns({
+              server_id: data.association_id,
+            })
+          );
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.log("err", err);
+      });
+  }, []);
 
   const handleAccountMenu = async () => {
     const data = await navigateForResult(
       setCallback2,
       router,
       "menus/screens/accounts",
-      { selected: accountItem ? [accountItem.id] : [] }
+      { selected: account ? [account.id] : [] }
     );
     if (data && data.length > 0) {
-      setAccountItem(data[0]);
+      setAccount(data[0]);
     }
     validate();
   };
@@ -99,7 +146,10 @@ export default function Edit() {
       setCallback2,
       router,
       "menus/screens/actypes",
-      { selected: typesItem ? [typesItem.id] : [], multiSelect: true }
+      {
+        selected: typesItem ? typesItem.map((item) => item.id) : [],
+        multiSelect: true,
+      }
     );
     if (data && data.length > 0) {
       setTypesItem(data);
@@ -112,29 +162,22 @@ export default function Edit() {
       setCallback2,
       router,
       "menus/screens/associations",
-      { selected: associationItem ? [associationItem.id] : [] }
+      { selected: association ? [association.id] : [] }
     );
     if (data && data.length > 0) {
-      setAssociationItem(data[0]);
+      setAssociation(data[0]);
     }
     validate();
   };
 
   const validate = () => {
-    setEditDone(associationItem && accountItem && typesItem);
-  };
-
-  const getPassbookNumber = () => {
-    if (passbook) return passbook;
-    const pb = `PB${Math.round(Math.random() * 100)}`;
-    setPassbook(pb);
-    return pb;
+    setEditDone(association && account && typesItem);
   };
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} style={styles.container}>
       <TextInput
-        initialValue={getPassbookNumber()}
+        initialValue={"Auto assigned"}
         label={"Passbook No."}
         placeholder={"Passbook No."}
         disabled
@@ -142,13 +185,13 @@ export default function Edit() {
       <SelectDialog
         label={"Select Association"}
         placeholder={"Select an Association"}
-        value={associationItem?.name}
+        value={association?.name}
         onPress={handleAssoicationMenu}
       />
       <SelectDialog
         label={"Select Account"}
         placeholder={"Select an Account"}
-        value={accountItem?.name}
+        value={account?.name}
         onPress={handleAccountMenu}
       />
 

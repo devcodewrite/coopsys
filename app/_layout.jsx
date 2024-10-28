@@ -24,6 +24,10 @@ export default function RootLayout() {
                 name="menus/filter"
                 options={{ headerShown: true }}
               />
+                <Stack.Screen
+                name="menus/screens/actypes"
+                options={{ headerShown: true }}
+              />
               <Stack.Screen
                 name="menus/screens/associations"
                 options={{ headerShown: true }}
@@ -50,6 +54,10 @@ export default function RootLayout() {
               />
               <Stack.Screen
                 name="menus/screens/accounts"
+                options={{ headerShown: true }}
+              />
+               <Stack.Screen
+                name="menus/screens/organizations"
                 options={{ headerShown: true }}
               />
               <Stack.Screen name="plus/add" options={{ headerShown: true }} />

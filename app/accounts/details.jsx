@@ -7,7 +7,10 @@ import { useRouteInfo } from "expo-router/build/hooks";
 import { Button, Text, useTheme } from "@rneui/themed";
 import CustomAvatar from "@/components/CustomAvatar";
 import { Label } from "@/components/Label";
-import { useActivityResult } from "@/hooks/useNavigateForResult";
+import {
+  navigateForResult,
+  useActivityResult,
+} from "@/hooks/useNavigateForResult";
 import moment from "moment";
 
 const titleOptions = [
@@ -36,16 +39,20 @@ const DetailsLayout = () => {
   useEffect(() => {
     navigation.setOptions({
       title: data.name,
-      headerRight: () => (
-        <HeaderButton
-          title={"Edit"}
-          onPress={() => navigation.navigate("accounts/edit")}
-        />
-      ),
+      headerRight: () => <HeaderButton title={"Edit"} onPress={handleEdit} />,
     });
   }, [navigation]);
 
-  const handleCall =  () => {
+  const handleEdit = async () => {
+    const result = await navigateForResult(
+      setCallback,
+      router,
+      "accounts/edit",
+      data
+    );
+    setData(result);
+  };
+  const handleCall = () => {
     Linking.openURL(`tel:${data.primary_phone}`).catch((e) => {
       console.log(e);
     });
@@ -108,7 +115,7 @@ const DetailsLayout = () => {
         <View style={styles.dateView}>
           <Text style={styles.date}>Joined: </Text>
           <Text style={styles.date} selectable>
-            {moment(data.created_at).format("D/M/Y")}
+            {moment(data.created_at).format("DD/MM/YY")}
           </Text>
         </View>
       </View>
@@ -133,7 +140,7 @@ const DetailsLayout = () => {
             },
             {
               title: "Birth Date",
-              value: moment(data.dateofbirth).format("D/M/Y"),
+              value: moment(data.dateofbirth).format("DD/MM/Y"),
               icon: { name: "cake" },
             },
           ]}

@@ -6,6 +6,8 @@ import SelectInput from "./inputs/SelectInput";
 import ButtonGroupInput from "./inputs/ButtonGroupInput";
 import ImagePickerInput from "./inputs/ImagePickerInput";
 import SingleDatePicker from "./inputs/SingleDatePicker";
+import moment from "moment";
+import { Ionicons } from "@expo/vector-icons";
 
 const FormWrapper = ({
   formValues,
@@ -34,7 +36,7 @@ const FormWrapper = ({
             key={field.name}
             label={field.label}
             placeholder={field.placeholder}
-            value={formValues[field.name] ?? ""}
+            initialValue={formValues[field.name] ?? ""}
             onChange={(value) => handleChange(field.name, value)}
             required={field?.required}
             regex={field?.regex}
@@ -49,7 +51,7 @@ const FormWrapper = ({
             key={field.name}
             label={field.label}
             placeholder={field.placeholder}
-            value={formValues[field.name] ?? ""}
+            initialValue={formValues[field.name] ?? ""}
             onChange={(value) => handleChange(field.name, value)}
             required={field?.required}
             regex={field?.regex}
@@ -63,7 +65,7 @@ const FormWrapper = ({
             key={field.name}
             label={field.label}
             placeholder={field.placeholder}
-            value={formValues[field.name] ?? ""}
+            initialValue={formValues[field.name] ?? ""}
             onChange={(value) => handleChange(field.name, value)}
             required={field?.required}
             regex={field?.regex}
@@ -117,9 +119,11 @@ const FormWrapper = ({
           <SingleDatePicker
             key={field.name}
             label={field.label}
+            value={moment(formValues[field.name]).format("DD/MM/YYYY") ?? ""}
             onDateSelected={(value) => handleChange(field.name, value)}
             required={field?.required}
             placeholder={field.placeholder}
+            icon={<Ionicons name="calendar" size={24} />}
           />
         );
 

@@ -51,17 +51,38 @@ const MenuLayout = () => {
       ),
     });
   }, [navigation, selectedItems]);
+  
+  useEffect(() => {
+    createSyncManager(process.env.EXPO_PUBLIC_COOP_URL, {
+      offices: officeModel,
+    })
+      .then(async (manager) => {
+        syncManager.current = manager;
+        handleSync(manager);
+        handleSearch();
+      })
+      .catch((err) => {
+        console.log("err", err);
+      });
+  }, []);
+
+  const handleSync = (manager, lastSyncTime = null) => {
+    manager
+      .sync(lastSyncTime)
+      .catch((err) => {
+        console.log("sync error", err);
+      })
+      .finally(async () => {
+       handleSearch();
+        setLoading(false);
+      });
+  };
 
   // Function to handle search
-  const handleSearch = (query) => {
-    if (query) {
-      const filteredData = PASSBOOK_DATA.filter((item) =>
-        item.id.toLowerCase().includes(query.toLowerCase())
+  const handleSearch = async () => {
+      setSearchResults(
+        await officeModel.getRecordByColumns()
       );
-      setSearchResults(filteredData);
-    } else {
-      setSearchResults(PASSBOOK_DATA);
-    }
   };
 
   return (
@@ -77,6 +98,10 @@ const MenuLayout = () => {
         data={searchResults}
         selectedItems={selected}
         onSelectItem={handleSelectItem}
+        onRefresh={() =>
+          handleSync(syncManager.current, "1970-01-01T00:00:00.000Z")
+        }
+        refreshing={loading}
         renderText={(item) => <Text>{item.id}</Text>}
       />
     </View>

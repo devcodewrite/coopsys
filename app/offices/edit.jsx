@@ -39,7 +39,8 @@ export default function Edit() {
   const { user } = useAuth();
   const { setCallback2 } = useActivityResult();
   const syncManager = useRef(null);
-  const { data } = route.params?.data ? JSON.parse(route.params?.data) : {};
+  const { data: result } = route.params ?? {};
+  const data = result ? JSON.parse(result) : {};
   const [formValues, setFormValues] = useState({ name: data?.name });
   const [region, setRegion] = useState(data?.region);
   const [district, setDistrict] = useState(data?.district);
@@ -112,9 +113,13 @@ export default function Edit() {
         manager.sync().catch((err) => {
           console.log("sync error", err);
         });
-        if (data) {
-          setRegion(await regionModel.getOneByColumns({ id: data.region_id }));
-          setDistrict(await districtModel.getOneByColumns({ id: data.district_id }));
+        if (data?.id) {
+          setRegion(
+            await regionModel.getOneByColumns({ server_id: data.region_id })
+          );
+          setDistrict(
+            await districtModel.getOneByColumns({ server_id: data.district_id })
+          );
         }
         setLoading(false);
       })
@@ -175,7 +180,7 @@ export default function Edit() {
           loading={loading}
           label={"Select District"}
           placeholder={"Select a district"}
-          value={district?.name}
+          value={`${district?.name} ${district?.category}`}
           onPress={handleDistrictMenu}
         />
       </View>
